@@ -1,285 +1,723 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
-<head>
-<meta charset="utf-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>CareCub chat_logs viewer</title>
-<style>
-  :root {
-    --bg: #0f1115; --panel: #171a21; --panel2: #1e222b; --line: #2a2f3a;
-    --txt: #e6e9ef; --muted: #9aa3b2; --accent: #5b9cff;
-    --gen: #5b9cff; --span: #3fb27f; --route: #c08af0;
-    --warn: #f0a35b; --err: #f0646e; --ok: #3fb27f;
-  }
-  * { box-sizing: border-box; }
-  body {
-    margin: 0; background: var(--bg); color: var(--txt);
-    font: 14px/1.5 -apple-system, "Segoe UI", "Sarabun", Roboto, sans-serif;
-  }
-  header { padding: 14px 20px; border-bottom: 1px solid var(--line); display: flex; gap: 16px; align-items: center; flex-wrap: wrap; }
-  header h1 { font-size: 16px; margin: 0; font-weight: 600; }
-  header .hint { color: var(--muted); font-size: 12px; }
-  .wrap { display: grid; grid-template-columns: 360px 1fr; min-height: calc(100vh - 53px); }
-  .left { border-right: 1px solid var(--line); padding: 16px; display: flex; flex-direction: column; gap: 12px; }
-  textarea {
-    width: 100%; height: 280px; resize: vertical; background: var(--panel); color: var(--txt);
-    border: 1px solid var(--line); border-radius: 8px; padding: 10px; font-family: ui-monospace, "Cascadia Code", Consolas, monospace; font-size: 12px;
-  }
-  button {
-    background: var(--accent); color: #06101f; border: 0; border-radius: 8px;
-    padding: 9px 14px; font-weight: 600; cursor: pointer;
-  }
-  button.ghost { background: var(--panel2); color: var(--txt); border: 1px solid var(--line); }
-  .turns { display: flex; flex-direction: column; gap: 6px; }
-  .turns button { text-align: left; background: var(--panel); color: var(--txt); border: 1px solid var(--line); font-weight: 500; }
-  .turns button.active { border-color: var(--accent); color: var(--accent); }
-  .right { padding: 20px 24px; overflow: auto; }
-  .summary { display: flex; gap: 18px; flex-wrap: wrap; margin-bottom: 18px; }
-  .stat { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 8px 14px; }
-  .stat .k { color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: .04em; }
-  .stat .v { font-size: 18px; font-weight: 600; }
-  .tags { display: flex; gap: 6px; flex-wrap: wrap; }
-  .tag { background: var(--panel2); border: 1px solid var(--line); border-radius: 999px; padding: 2px 10px; font-size: 12px; color: var(--muted); }
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>CareCub chat_logs viewer</title>
+    <style>
+      :root {
+        --bg: #0f1115;
+        --panel: #171a21;
+        --panel2: #1e222b;
+        --line: #2a2f3a;
+        --txt: #e6e9ef;
+        --muted: #9aa3b2;
+        --accent: #5b9cff;
+        --gen: #5b9cff;
+        --span: #3fb27f;
+        --route: #c08af0;
+        --warn: #f0a35b;
+        --err: #f0646e;
+        --ok: #3fb27f;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        background: var(--bg);
+        color: var(--txt);
+        font:
+          14px/1.5 -apple-system,
+          "Segoe UI",
+          "Sarabun",
+          Roboto,
+          sans-serif;
+      }
+      header {
+        padding: 14px 20px;
+        border-bottom: 1px solid var(--line);
+        display: flex;
+        gap: 16px;
+        align-items: center;
+        flex-wrap: wrap;
+      }
+      header h1 {
+        font-size: 16px;
+        margin: 0;
+        font-weight: 600;
+      }
+      header .hint {
+        color: var(--muted);
+        font-size: 12px;
+      }
+      .wrap {
+        display: grid;
+        grid-template-columns: 360px 1fr;
+        min-height: calc(100vh - 53px);
+      }
+      .left {
+        border-right: 1px solid var(--line);
+        padding: 16px;
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+      }
+      textarea {
+        width: 100%;
+        height: 280px;
+        resize: vertical;
+        background: var(--panel);
+        color: var(--txt);
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        padding: 10px;
+        font-family: ui-monospace, "Cascadia Code", Consolas, monospace;
+        font-size: 12px;
+      }
+      input[type="text"] {
+        width: 100%;
+        background: var(--panel);
+        color: var(--txt);
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        padding: 9px 10px;
+        font-family: ui-monospace, "Cascadia Code", Consolas, monospace;
+        font-size: 12px;
+      }
+      .fetch {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+        padding-bottom: 12px;
+        border-bottom: 1px solid var(--line);
+      }
+      .fetch .or {
+        color: var(--muted);
+        font-size: 11px;
+        text-align: center;
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+      }
+      .fetch .msg {
+        font-size: 12px;
+        min-height: 16px;
+      }
+      .fetch .msg.err {
+        color: var(--err);
+      }
+      button {
+        background: var(--accent);
+        color: #06101f;
+        border: 0;
+        border-radius: 8px;
+        padding: 9px 14px;
+        font-weight: 600;
+        cursor: pointer;
+      }
+      button.ghost {
+        background: var(--panel2);
+        color: var(--txt);
+        border: 1px solid var(--line);
+      }
+      .turns {
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+      }
+      .turns button {
+        text-align: left;
+        background: var(--panel);
+        color: var(--txt);
+        border: 1px solid var(--line);
+        font-weight: 500;
+      }
+      .turns button.active {
+        border-color: var(--accent);
+        color: var(--accent);
+      }
+      .right {
+        padding: 20px 24px;
+        overflow: auto;
+      }
+      .qa {
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+        background: var(--panel);
+        border: 1px solid var(--line);
+        border-radius: 10px;
+        padding: 12px 14px;
+        margin-bottom: 18px;
+        max-width: 920px;
+      }
+      .qa-id {
+        font-size: 12px;
+        color: var(--muted);
+      }
+      .qa-id code {
+        color: var(--txt);
+      }
+      .qa-label {
+        display: inline-block;
+        font-size: 10px;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        padding: 2px 8px;
+        border-radius: 5px;
+        margin-bottom: 4px;
+      }
+      .qa-label.user {
+        background: rgba(91, 156, 255, 0.15);
+        color: var(--accent);
+      }
+      .qa-label.bot {
+        background: rgba(63, 178, 127, 0.15);
+        color: var(--ok);
+      }
+      .summary {
+        display: flex;
+        gap: 18px;
+        flex-wrap: wrap;
+        margin-bottom: 18px;
+      }
+      .stat {
+        background: var(--panel);
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        padding: 8px 14px;
+      }
+      .stat .k {
+        color: var(--muted);
+        font-size: 11px;
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+      }
+      .stat .v {
+        font-size: 18px;
+        font-weight: 600;
+      }
+      .tags {
+        display: flex;
+        gap: 6px;
+        flex-wrap: wrap;
+      }
+      .tag {
+        background: var(--panel2);
+        border: 1px solid var(--line);
+        border-radius: 999px;
+        padding: 2px 10px;
+        font-size: 12px;
+        color: var(--muted);
+      }
 
-  .flow { display: flex; flex-direction: column; align-items: stretch; gap: 0; max-width: 920px; }
-  .node { position: relative; }
-  .connector { height: 22px; width: 2px; background: var(--line); margin-left: 26px; }
-  .connector::after { content: "▼"; position: absolute; left: 21px; bottom: -4px; color: var(--line); font-size: 11px; }
+      .flow {
+        display: flex;
+        flex-direction: column;
+        align-items: stretch;
+        gap: 0;
+        max-width: 920px;
+      }
+      .node {
+        position: relative;
+      }
+      .connector {
+        height: 22px;
+        width: 2px;
+        background: var(--line);
+        margin-left: 26px;
+      }
+      .connector::after {
+        content: "▼";
+        position: absolute;
+        left: 21px;
+        bottom: -4px;
+        color: var(--line);
+        font-size: 11px;
+      }
 
-  .card { background: var(--panel); border: 1px solid var(--line); border-left: 4px solid var(--line); border-radius: 10px; overflow: hidden; }
-  .card.gen { border-left-color: var(--gen); }
-  .card.span { border-left-color: var(--span); }
-  .card.route { border-left-color: var(--route); }
-  .card.err { border-left-color: var(--err); }
-  .card > .head { display: flex; align-items: center; gap: 10px; padding: 10px 14px; cursor: pointer; user-select: none; }
-  .card > .head:hover { background: var(--panel2); }
-  .card .title { font-weight: 600; }
-  .card .kind { font-size: 10px; text-transform: uppercase; letter-spacing: .05em; padding: 2px 7px; border-radius: 5px; background: var(--panel2); color: var(--muted); }
-  .kind.gen { color: var(--gen); } .kind.span { color: var(--span); } .kind.route { color: var(--route); }
-  .card .model { color: var(--muted); font-size: 12px; font-family: ui-monospace, monospace; }
-  .card .timing { margin-left: auto; color: var(--muted); font-size: 12px; white-space: nowrap; }
-  .card .body { padding: 0 14px 12px 14px; display: flex; flex-direction: column; gap: 10px; }
-  .card.collapsed .body { display: none; }
+      .card {
+        background: var(--panel);
+        border: 1px solid var(--line);
+        border-left: 4px solid var(--line);
+        border-radius: 10px;
+        overflow: hidden;
+      }
+      .card.gen {
+        border-left-color: var(--gen);
+      }
+      .card.span {
+        border-left-color: var(--span);
+      }
+      .card.route {
+        border-left-color: var(--route);
+      }
+      .card.err {
+        border-left-color: var(--err);
+      }
+      .card > .head {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        padding: 10px 14px;
+        cursor: pointer;
+        user-select: none;
+      }
+      .card > .head:hover {
+        background: var(--panel2);
+      }
+      .card .title {
+        font-weight: 600;
+      }
+      .card .kind {
+        font-size: 10px;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        padding: 2px 7px;
+        border-radius: 5px;
+        background: var(--panel2);
+        color: var(--muted);
+      }
+      .kind.gen {
+        color: var(--gen);
+      }
+      .kind.span {
+        color: var(--span);
+      }
+      .kind.route {
+        color: var(--route);
+      }
+      .card .model {
+        color: var(--muted);
+        font-size: 12px;
+        font-family: ui-monospace, monospace;
+      }
+      .card .timing {
+        margin-left: auto;
+        color: var(--muted);
+        font-size: 12px;
+        white-space: nowrap;
+      }
+      .card .body {
+        padding: 0 14px 12px 14px;
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+      }
+      .card.collapsed .body {
+        display: none;
+      }
 
-  .row { background: var(--panel2); border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; }
-  .row .rh { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--muted); margin-bottom: 4px; cursor: pointer; }
-  .row .rh .name { color: var(--txt); font-weight: 600; text-transform: uppercase; letter-spacing: .04em; font-size: 11px; }
-  .row .rh .t { margin-left: auto; }
-  .chips { display: flex; flex-wrap: wrap; gap: 6px; }
-  .chip { background: var(--panel); border: 1px solid var(--line); border-radius: 6px; padding: 2px 8px; font-size: 12px; font-family: ui-monospace, monospace; }
-  .chip b { color: var(--accent); font-weight: 600; }
-  pre.text { white-space: pre-wrap; word-break: break-word; margin: 0; font-family: inherit; font-size: 13px; max-height: 360px; overflow: auto; }
-  pre.mono { white-space: pre-wrap; word-break: break-word; margin: 0; font-family: ui-monospace, monospace; font-size: 12px; color: var(--muted); max-height: 320px; overflow: auto; }
-  .collapsedRow .det { display: none; }
-  .badge { padding: 2px 8px; border-radius: 6px; font-size: 11px; font-weight: 600; }
-  .badge.ok { background: rgba(63,178,127,.15); color: var(--ok); }
-  .badge.warn { background: rgba(240,163,91,.15); color: var(--warn); }
-  .badge.err { background: rgba(240,100,110,.15); color: var(--err); }
-  .src { font-size: 12px; color: var(--muted); }
-  .support { border-left: 2px solid var(--line); padding-left: 8px; margin: 6px 0; font-size: 13px; }
-  .support .meta { color: var(--muted); font-size: 11px; }
-  .err-msg { color: var(--err); font-family: ui-monospace, monospace; font-size: 12px; }
-  .empty { color: var(--muted); padding: 40px; text-align: center; }
-  .tip { cursor: help; }
-  /* position:fixed so the box escapes the card/panel overflow clipping;
+      .row {
+        background: var(--panel2);
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        padding: 8px 10px;
+      }
+      .row .rh {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        font-size: 12px;
+        color: var(--muted);
+        margin-bottom: 4px;
+        cursor: pointer;
+      }
+      .row .rh .name {
+        color: var(--txt);
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+        font-size: 11px;
+      }
+      .row .rh .t {
+        margin-left: auto;
+      }
+      .chips {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px;
+      }
+      .chip {
+        background: var(--panel);
+        border: 1px solid var(--line);
+        border-radius: 6px;
+        padding: 2px 8px;
+        font-size: 12px;
+        font-family: ui-monospace, monospace;
+      }
+      .chip b {
+        color: var(--accent);
+        font-weight: 600;
+      }
+      pre.text {
+        white-space: pre-wrap;
+        word-break: break-word;
+        margin: 0;
+        font-family: inherit;
+        font-size: 13px;
+        max-height: 360px;
+        overflow: auto;
+      }
+      pre.mono {
+        white-space: pre-wrap;
+        word-break: break-word;
+        margin: 0;
+        font-family: ui-monospace, monospace;
+        font-size: 12px;
+        color: var(--muted);
+        max-height: 320px;
+        overflow: auto;
+      }
+      .collapsedRow .det {
+        display: none;
+      }
+      .badge {
+        padding: 2px 8px;
+        border-radius: 6px;
+        font-size: 11px;
+        font-weight: 600;
+      }
+      .badge.ok {
+        background: rgba(63, 178, 127, 0.15);
+        color: var(--ok);
+      }
+      .badge.warn {
+        background: rgba(240, 163, 91, 0.15);
+        color: var(--warn);
+      }
+      .badge.err {
+        background: rgba(240, 100, 110, 0.15);
+        color: var(--err);
+      }
+      .src {
+        font-size: 12px;
+        color: var(--muted);
+      }
+      .support {
+        border-left: 2px solid var(--line);
+        padding-left: 8px;
+        margin: 6px 0;
+        font-size: 13px;
+      }
+      .support .meta {
+        color: var(--muted);
+        font-size: 11px;
+      }
+      .err-msg {
+        color: var(--err);
+        font-family: ui-monospace, monospace;
+        font-size: 12px;
+      }
+      .empty {
+        color: var(--muted);
+        padding: 40px;
+        text-align: center;
+      }
+      .tip {
+        cursor: help;
+      }
+      /* position:fixed so the box escapes the card/panel overflow clipping;
      JS places it relative to the trigger and clamps it to the viewport. */
-  .tipbox {
-    display: none; position: fixed; z-index: 100; width: 340px; max-width: 92vw;
-    background: var(--panel2); border: 1px solid var(--line); border-radius: 8px;
-    padding: 9px 11px; font-size: 12px; font-weight: 400; line-height: 1.5; color: var(--txt);
-    white-space: normal; box-shadow: 0 6px 20px rgba(0,0,0,.5);
-  }
-</style>
-</head>
-<body>
-<header>
-  <h1>CareCub <code>chat_logs</code> viewer</h1>
-  <span class="hint">Paste the <code>events</code> array (or the numbered multi-turn dump) and render.</span>
-</header>
-<div class="wrap">
-  <div class="left">
-    <textarea id="input" placeholder='Paste one events array  [ {"event":"stage_start", ...}, ... ]  — or several prefixed with 1. 2. 3.'></textarea>
-    <div style="display:flex; gap:8px;">
-      <button id="render">Render</button>
-      <button class="ghost" id="expand">Expand all</button>
-      <button class="ghost" id="collapse">Collapse all</button>
+      .tipbox {
+        display: none;
+        position: fixed;
+        z-index: 100;
+        width: 340px;
+        max-width: 92vw;
+        background: var(--panel2);
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        padding: 9px 11px;
+        font-size: 12px;
+        font-weight: 400;
+        line-height: 1.5;
+        color: var(--txt);
+        white-space: normal;
+        box-shadow: 0 6px 20px rgba(0, 0, 0, 0.5);
+      }
+    </style>
+  </head>
+  <body>
+    <header>
+      <h1>CareCub <code>chat_logs</code> viewer</h1>
+      <span class="hint"
+        >Paste the <code>events</code> array (or the numbered multi-turn dump)
+        and render.</span
+      >
+    </header>
+    <div class="wrap">
+      <div class="left">
+        <div class="fetch">
+          <input
+            type="text"
+            id="conv"
+            placeholder="conversation_id  (row id — single turn)"
+            autocomplete="off"
+          />
+          <div class="or">or</div>
+          <input
+            type="text"
+            id="sess"
+            placeholder="session_id  (all turns, oldest first)"
+            autocomplete="off"
+          />
+          <button id="fetch">Fetch from Supabase</button>
+          <div class="msg" id="fetchMsg"></div>
+        </div>
+        <textarea
+          id="input"
+          placeholder='Paste one events array  [ {"event":"stage_start", ...}, ... ]  — or several prefixed with 1. 2. 3.'
+        ></textarea>
+        <div style="display: flex; gap: 8px">
+          <button id="render">Render</button>
+          <button class="ghost" id="expand">Expand all</button>
+          <button class="ghost" id="collapse">Collapse all</button>
+        </div>
+        <div class="turns" id="turns"></div>
+      </div>
+      <div class="right" id="out">
+        <div class="empty">
+          Paste data on the left, then click <b>Render</b>.
+        </div>
+      </div>
     </div>
-    <div class="turns" id="turns"></div>
-  </div>
-  <div class="right" id="out"><div class="empty">Paste data on the left, then click <b>Render</b>.</div></div>
-</div>
 
-<script>
-"use strict";
+    <script>
+      "use strict";
 
-// ---- tolerant parser: extract every top-level JSON array from the text ----
-function extractArrays(text) {
-  const arrays = [];
-  let depth = 0, start = -1, inStr = false, esc = false;
-  for (let i = 0; i < text.length; i++) {
-    const c = text[i];
-    if (inStr) {
-      if (esc) esc = false;
-      else if (c === "\\") esc = true;
-      else if (c === '"') inStr = false;
-      continue;
-    }
-    if (c === '"') { inStr = true; continue; }
-    if (c === "[") { if (depth === 0) start = i; depth++; }
-    else if (c === "]") {
-      depth--;
-      if (depth === 0 && start >= 0) {
-        const slice = text.slice(start, i + 1);
-        try { const v = JSON.parse(slice); if (Array.isArray(v)) arrays.push(v); }
-        catch (e) { /* skip non-JSON bracket runs */ }
-        start = -1;
+      // ---- tolerant parser: extract every top-level JSON array from the text ----
+      function extractArrays(text) {
+        const arrays = [];
+        let depth = 0,
+          start = -1,
+          inStr = false,
+          esc = false;
+        for (let i = 0; i < text.length; i++) {
+          const c = text[i];
+          if (inStr) {
+            if (esc) esc = false;
+            else if (c === "\\") esc = true;
+            else if (c === '"') inStr = false;
+            continue;
+          }
+          if (c === '"') {
+            inStr = true;
+            continue;
+          }
+          if (c === "[") {
+            if (depth === 0) start = i;
+            depth++;
+          } else if (c === "]") {
+            depth--;
+            if (depth === 0 && start >= 0) {
+              const slice = text.slice(start, i + 1);
+              try {
+                const v = JSON.parse(slice);
+                if (Array.isArray(v)) arrays.push(v);
+              } catch (e) {
+                /* skip non-JSON bracket runs */
+              }
+              start = -1;
+            }
+          }
+        }
+        return arrays;
       }
-    }
-  }
-  return arrays;
-}
 
-// ---- reconstruct stage tree + root-ordered flow from a flat event list ----
-function buildFlow(events) {
-  const root = [];        // ordered flow items at the route level
-  const stack = [];       // open stage nodes
-  for (const ev of events) {
-    const top = stack[stack.length - 1];
-    if (ev.event === "stage_start") {
-      const d = ev.data || {};
-      const node = { type: "stage", name: d.name, kind: d.kind || "span",
-        model: d.model || null, tags: d, t_ms: ev.t_ms, duration_ms: null, events: [] };
-      (top ? top.events : root).push(node);
-      stack.push(node);
-    } else if (ev.event === "stage_end") {
-      const node = stack.pop();
-      if (node && ev.data) node.duration_ms = ev.data.duration_ms;
-    } else {
-      (top ? top.events : root).push({ type: "event", ev });
-    }
-  }
-  return root;
-}
-
-function esc(s) {
-  return String(s == null ? "" : s)
-    .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
-}
-function el(html) { const t = document.createElement("template"); t.innerHTML = html.trim(); return t.content.firstChild; }
-
-// render any value safely: strings as-is, objects/arrays as beautified JSON
-// (never "[object Object]").
-function pretty(v) {
-  if (v == null) return "—";
-  if (typeof v === "string") return esc(v);
-  try { return esc(JSON.stringify(v, null, 2)); } catch (e) { return esc(String(v)); }
-}
-
-// Explain a router fail-open `reason` (from pipeline/router.py). Returns the
-// tooltip text, or null for a normal classification reason (no tooltip).
-function explainReason(reason) {
-  if (typeof reason !== "string" || !reason.startsWith("fail-open")) return null;
-  const cause = reason.replace(/^fail-open:?/, "").trim();
-  const base = "Router failed open: the intent classifier (Gemini Flash-Lite) errored, "
-    + "so the pipeline defaulted to GENERAL_QUESTION instead of crashing. This turn skips "
-    + "intent-specific routing (price lookup, escalation, clarification) and is answered by "
-    + "the main model grounded on File Search. ";
-  const detail = cause === "timeout"
-    ? "Cause: the classifier did not respond within the configured timeout."
-    : `Cause: the classifier raised an error — “${cause}” (a Gemini client error message, or an unexpected exception's type name).`;
-  return base + detail;
-}
-
-// ---- renderers for each event kind ----
-function chips(obj, skip = []) {
-  return '<div class="chips">' + Object.entries(obj)
-    .filter(([k]) => !skip.includes(k))
-    .map(([k, v]) => `<span class="chip"><b>${esc(k)}</b> ${esc(typeof v === "object" ? JSON.stringify(v) : v)}</span>`)
-    .join("") + "</div>";
-}
-
-function renderEventBody(ev) {
-  const d = ev.data || {};
-  switch (ev.event) {
-    case "input": {
-      const v = d.value || {};
-      let out = "";
-      if (v.system) out += `<div class="src">system prompt</div><pre class="mono">${esc(v.system)}</pre>`;
-      if (v.user) out += `<div class="src">user</div><pre class="text">${esc(v.user)}</pre>`;
-      if (Array.isArray(v.messages)) {
-        out += v.messages.map(m => {
-          const txt = Array.isArray(m.parts) ? m.parts.map(p => p.text || "").join("") : (m.content || "");
-          return `<div class="src">${esc(m.role)}</div><pre class="text">${esc(txt)}</pre>`;
-        }).join("");
+      // ---- reconstruct stage tree + root-ordered flow from a flat event list ----
+      function buildFlow(events) {
+        const root = []; // ordered flow items at the route level
+        const stack = []; // open stage nodes
+        for (const ev of events) {
+          const top = stack[stack.length - 1];
+          if (ev.event === "stage_start") {
+            const d = ev.data || {};
+            const node = {
+              type: "stage",
+              name: d.name,
+              kind: d.kind || "span",
+              model: d.model || null,
+              tags: d,
+              t_ms: ev.t_ms,
+              duration_ms: null,
+              events: [],
+            };
+            (top ? top.events : root).push(node);
+            stack.push(node);
+          } else if (ev.event === "stage_end") {
+            const node = stack.pop();
+            if (node && ev.data) node.duration_ms = ev.data.duration_ms;
+          } else {
+            (top ? top.events : root).push({ type: "event", ev });
+          }
+        }
+        return root;
       }
-      if (!out) out = `<pre class="mono">${esc(JSON.stringify(v, null, 2))}</pre>`;
-      return out;
-    }
-    case "output":
-      return `<pre class="text">${pretty(d.value)}</pre>`;
-    case "model_parameters":
-      return chips(d);
-    case "usage":
-      return chips(d);
-    case "first_chunk":
-      return `<span class="badge ok">first byte streamed</span>`;
-    case "span_attrs":
-      return chips(d);
-    case "error":
-      return `<div class="err-msg">${esc(d.message)}</div>`;
-    case "router_decision": {
-      const f = d.filters || {};
-      const refs = (d.plan_refs || []).join(", ") || "—";
-      const expl = explainReason(d.reason);
-      const reasonHtml = expl
-        ? `<span class="badge warn tip" tabindex="0">⚠ ${esc(d.reason)} — why?<span class="tipbox">${esc(expl)}</span></span>`
-        : `<pre class="text">${esc(d.reason)}</pre>`;
-      return `${chips({ intent: d.intent, escalate: d.escalate, tools: (d.tools||[]).join("+")||"—", plan_refs: refs })}
+
+      function esc(s) {
+        return String(s == null ? "" : s)
+          .replace(/&/g, "&amp;")
+          .replace(/</g, "&lt;")
+          .replace(/>/g, "&gt;");
+      }
+      function el(html) {
+        const t = document.createElement("template");
+        t.innerHTML = html.trim();
+        return t.content.firstChild;
+      }
+
+      // render any value safely: strings as-is, objects/arrays as beautified JSON
+      // (never "[object Object]").
+      function pretty(v) {
+        if (v == null) return "—";
+        if (typeof v === "string") return esc(v);
+        try {
+          return esc(JSON.stringify(v, null, 2));
+        } catch (e) {
+          return esc(String(v));
+        }
+      }
+
+      // Explain a router fail-open `reason` (from pipeline/router.py). Returns the
+      // tooltip text, or null for a normal classification reason (no tooltip).
+      function explainReason(reason) {
+        if (typeof reason !== "string" || !reason.startsWith("fail-open"))
+          return null;
+        const cause = reason.replace(/^fail-open:?/, "").trim();
+        const base =
+          "Router failed open: the intent classifier (Gemini Flash-Lite) errored, " +
+          "so the pipeline defaulted to GENERAL_QUESTION instead of crashing. This turn skips " +
+          "intent-specific routing (price lookup, escalation, clarification) and is answered by " +
+          "the main model grounded on File Search. ";
+        const detail =
+          cause === "timeout"
+            ? "Cause: the classifier did not respond within the configured timeout."
+            : `Cause: the classifier raised an error — “${cause}” (a Gemini client error message, or an unexpected exception's type name).`;
+        return base + detail;
+      }
+
+      // ---- renderers for each event kind ----
+      function chips(obj, skip = []) {
+        return (
+          '<div class="chips">' +
+          Object.entries(obj)
+            .filter(([k]) => !skip.includes(k))
+            .map(
+              ([k, v]) =>
+                `<span class="chip"><b>${esc(k)}</b> ${esc(typeof v === "object" ? JSON.stringify(v) : v)}</span>`,
+            )
+            .join("") +
+          "</div>"
+        );
+      }
+
+      function renderEventBody(ev) {
+        const d = ev.data || {};
+        switch (ev.event) {
+          case "input": {
+            const v = d.value || {};
+            let out = "";
+            if (v.system)
+              out += `<div class="src">system prompt</div><pre class="mono">${esc(v.system)}</pre>`;
+            if (v.user)
+              out += `<div class="src">user</div><pre class="text">${esc(v.user)}</pre>`;
+            if (Array.isArray(v.messages)) {
+              out += v.messages
+                .map((m) => {
+                  const txt = Array.isArray(m.parts)
+                    ? m.parts.map((p) => p.text || "").join("")
+                    : m.content || "";
+                  return `<div class="src">${esc(m.role)}</div><pre class="text">${esc(txt)}</pre>`;
+                })
+                .join("");
+            }
+            if (!out)
+              out = `<pre class="mono">${esc(JSON.stringify(v, null, 2))}</pre>`;
+            return out;
+          }
+          case "output":
+            return `<pre class="text">${pretty(d.value)}</pre>`;
+          case "model_parameters":
+            return chips(d);
+          case "usage":
+            return chips(d);
+          case "usage_total":
+            return chips(d);
+          case "first_chunk":
+            return `<span class="badge ok">first byte streamed</span>`;
+          case "span_attrs":
+            return chips(d);
+          case "error":
+            return `<div class="err-msg">${esc(d.message)}</div>`;
+          case "router_decision": {
+            const f = d.filters || {};
+            const refs = (d.plan_refs || []).join(", ") || "—";
+            const expl = explainReason(d.reason);
+            const reasonHtml = expl
+              ? `<span class="badge warn tip" tabindex="0">⚠ ${esc(d.reason)} — why?<span class="tipbox">${esc(expl)}</span></span>`
+              : `<pre class="text">${esc(d.reason)}</pre>`;
+            return `${chips({ intent: d.intent, escalate: d.escalate, tools: (d.tools || []).join("+") || "—", plan_refs: refs })}
         <div class="src" style="margin-top:6px">reason</div>${reasonHtml}
         <div class="src" style="margin-top:6px">filters</div>${chips(f)}`;
-    }
-    case "branch":
-      return chips(d);
-    case "turn_end":
-      return `<div class="tags">${(d.tags||[]).map(t => `<span class="tag">${esc(t)}</span>`).join("")}</div>
+          }
+          case "branch":
+            return chips(d);
+          case "turn_end":
+            return `<div class="tags">${(d.tags || []).map((t) => `<span class="tag">${esc(t)}</span>`).join("")}</div>
         ${chips({ emitted: d.emitted })}`;
-    case "retrieval": {
-      const grounded = d.grounded
-        ? `<span class="badge ok">grounded</span>`
-        : `<span class="badge warn">no grounding</span>`;
-      const cov = d.coverage != null ? `<span class="chip"><b>coverage</b> ${(d.coverage*100).toFixed(1)}%</span>` : "";
-      const nc = d.num_chunks != null ? `<span class="chip"><b>chunks</b> ${d.num_chunks}</span>` : "";
-      const srcs = (d.sources||[]).map(s => esc(s.title || s.uri || "?")).join(", ");
-      const sup = (d.supports||[]).map(s =>
-        `<div class="support">${esc(s.text)}<div class="meta">↳ ${esc((s.sources||[]).join(", "))} · chunks [${esc((s.chunk_indices||[]).join(","))}]</div></div>`
-      ).join("");
-      return `<div class="chips" style="margin-bottom:6px">${grounded}${cov}${nc}</div>
+          case "retrieval": {
+            const grounded = d.grounded
+              ? `<span class="badge ok">grounded</span>`
+              : `<span class="badge warn">no grounding</span>`;
+            const cov =
+              d.coverage != null
+                ? `<span class="chip"><b>coverage</b> ${(d.coverage * 100).toFixed(1)}%</span>`
+                : "";
+            const nc =
+              d.num_chunks != null
+                ? `<span class="chip"><b>chunks</b> ${d.num_chunks}</span>`
+                : "";
+            const srcs = (d.sources || [])
+              .map((s) => esc(s.title || s.uri || "?"))
+              .join(", ");
+            const sup = (d.supports || [])
+              .map(
+                (s) =>
+                  `<div class="support">${esc(s.text)}<div class="meta">↳ ${esc((s.sources || []).join(", "))} · chunks [${esc((s.chunk_indices || []).join(","))}]</div></div>`,
+              )
+              .join("");
+            return `<div class="chips" style="margin-bottom:6px">${grounded}${cov}${nc}</div>
         <div class="src">sources: ${srcs || "—"}</div>${sup}`;
-    }
-    default:
-      return `<pre class="mono">${esc(JSON.stringify(d, null, 2))}</pre>`;
-  }
-}
+          }
+          default:
+            return `<pre class="mono">${esc(JSON.stringify(d, null, 2))}</pre>`;
+        }
+      }
 
-// events that are big by default -> start collapsed
-const BIG = new Set(["input", "output", "retrieval"]);
+      // events that are big by default -> start collapsed
+      const BIG = new Set(["input", "output", "retrieval"]);
 
-function renderEvent(item) {
-  const ev = item.ev;
-  const collapsed = BIG.has(ev.event);
-  const row = el(`<div class="row ${collapsed ? "collapsedRow" : ""}">
+      function renderEvent(item) {
+        const ev = item.ev;
+        const collapsed = BIG.has(ev.event);
+        const row = el(`<div class="row ${collapsed ? "collapsedRow" : ""}">
     <div class="rh"><span class="name">${esc(ev.event)}</span>
       ${ev.stage ? `<span>· ${esc(ev.stage)}</span>` : ""}
       <span class="t">${esc(ev.t_ms)} ms</span></div>
     <div class="det">${renderEventBody(ev)}</div>
   </div>`);
-  row.querySelector(".rh").addEventListener("click", () => row.classList.toggle("collapsedRow"));
-  return row;
-}
+        row
+          .querySelector(".rh")
+          .addEventListener("click", () =>
+            row.classList.toggle("collapsedRow"),
+          );
+        return row;
+      }
 
-function renderStage(node) {
-  const cls = node.kind === "generation" ? "gen" : "span";
-  const card = el(`<div class="card ${cls}">
+      function renderStage(node) {
+        const cls = node.kind === "generation" ? "gen" : "span";
+        const card = el(`<div class="card ${cls}">
     <div class="head">
       <span class="kind ${cls}">${esc(node.kind)}</span>
       <span class="title">${esc(node.name)}</span>
@@ -288,20 +726,27 @@ function renderStage(node) {
     </div>
     <div class="body"></div>
   </div>`);
-  const body = card.querySelector(".body");
-  for (const child of node.events) {
-    body.appendChild(child.type === "stage" ? wrapNode(renderStage(child)) : renderEvent(child));
-  }
-  if (!node.events.length) body.appendChild(el(`<div class="src">no inner events</div>`));
-  card.querySelector(".head").addEventListener("click", () => card.classList.toggle("collapsed"));
-  return card;
-}
+        const body = card.querySelector(".body");
+        for (const child of node.events) {
+          body.appendChild(
+            child.type === "stage"
+              ? wrapNode(renderStage(child))
+              : renderEvent(child),
+          );
+        }
+        if (!node.events.length)
+          body.appendChild(el(`<div class="src">no inner events</div>`));
+        card
+          .querySelector(".head")
+          .addEventListener("click", () => card.classList.toggle("collapsed"));
+        return card;
+      }
 
-// route-level events get a distinct "route" card
-function renderRouteEvent(item) {
-  const ev = item.ev;
-  const isErr = ev.event === "error";
-  const card = el(`<div class="card ${isErr ? "err" : "route"}">
+      // route-level events get a distinct "route" card
+      function renderRouteEvent(item) {
+        const ev = item.ev;
+        const isErr = ev.event === "error";
+        const card = el(`<div class="card ${isErr ? "err" : "route"}">
     <div class="head">
       <span class="kind route">${isErr ? "error" : "route"}</span>
       <span class="title">${esc(ev.event)}</span>
@@ -309,118 +754,279 @@ function renderRouteEvent(item) {
     </div>
     <div class="body"></div>
   </div>`);
-  card.querySelector(".body").innerHTML = renderEventBody(ev);
-  card.querySelector(".head").addEventListener("click", () => card.classList.toggle("collapsed"));
-  return card;
-}
+        card.querySelector(".body").innerHTML = renderEventBody(ev);
+        card
+          .querySelector(".head")
+          .addEventListener("click", () => card.classList.toggle("collapsed"));
+        return card;
+      }
 
-function wrapNode(cardEl) {
-  const node = el(`<div class="node"></div>`);
-  node.appendChild(cardEl);
-  return node;
-}
+      function wrapNode(cardEl) {
+        const node = el(`<div class="node"></div>`);
+        node.appendChild(cardEl);
+        return node;
+      }
 
-function renderFlow(flow) {
-  const container = el(`<div class="flow"></div>`);
-  flow.forEach((item, i) => {
-    if (i > 0) container.appendChild(el(`<div class="connector"></div>`));
-    const card = item.type === "stage" ? renderStage(item) : renderRouteEvent(item);
-    container.appendChild(wrapNode(card));
-  });
-  return container;
-}
+      function renderFlow(flow) {
+        const container = el(`<div class="flow"></div>`);
+        flow.forEach((item, i) => {
+          if (i > 0) container.appendChild(el(`<div class="connector"></div>`));
+          const card =
+            item.type === "stage" ? renderStage(item) : renderRouteEvent(item);
+          container.appendChild(wrapNode(card));
+        });
+        return container;
+      }
 
-function renderSummary(events) {
-  const total = events.length ? events[events.length - 1].t_ms : 0;
-  const turnEnd = events.find(e => e.event === "turn_end");
-  const tags = (turnEnd && turnEnd.data && turnEnd.data.tags) || [];
-  const usage = events.filter(e => e.event === "usage").reduce((a, e) => {
-    a.in += (e.data.input || 0); a.out += (e.data.output || 0); return a;
-  }, { in: 0, out: 0 });
-  const firstByte = events.find(e => e.event === "first_chunk");
-  const wrap = el(`<div>
+      // Latest user prompt = last user message in the LAST `input` event.
+      // (The first input belongs to the router stage and is questionnaire background,
+      // not what the user typed — so we read the final generation's input.)
+      function latestPrompt(events) {
+        const inputs = events.filter((e) => e.event === "input");
+        const v = (inputs[inputs.length - 1]?.data || {}).value || {};
+        if (Array.isArray(v.messages)) {
+          const u = v.messages.filter((m) => m.role === "user").pop();
+          if (u)
+            return Array.isArray(u.parts)
+              ? u.parts.map((p) => p.text || "").join("")
+              : u.content || "";
+        }
+        return v.user || null;
+      }
+
+      // Chatbot answer = value of the LAST `output` event (the final generation).
+      function finalAnswer(events) {
+        const outs = events.filter((e) => e.event === "output");
+        return outs.length ? (outs[outs.length - 1].data || {}).value : null;
+      }
+
+      function renderQA(events, convId, sessId) {
+        const prompt = latestPrompt(events);
+        const answer = finalAnswer(events);
+        return el(`<div class="qa">
+  ${sessId ? `<div class="qa-id">session_id <code>${esc(sessId)}</code></div>` : ""}
+    ${convId ? `<div class="qa-id">conversation_id <code>${esc(convId)}</code></div>` : ""}
+    <div><div class="qa-label user">User prompt</div><pre class="text">${prompt != null ? esc(prompt) : "—"}</pre></div>
+    <div><div class="qa-label bot">Chatbot answer</div><pre class="text">${pretty(answer)}</pre></div>
+  </div>`);
+      }
+
+      function renderSummary(events) {
+        const total = events.length ? events[events.length - 1].t_ms : 0;
+        const turnEnd = events.find((e) => e.event === "turn_end");
+        const tags = (turnEnd && turnEnd.data && turnEnd.data.tags) || [];
+        const usage = events
+          .filter((e) => e.event === "usage")
+          .reduce(
+            (a, e) => {
+              const d = e.data || {};
+              a.in += d.n_input_token ?? d.input ?? 0;
+              // Fall back to raw provider keys (cache_read + cache_creation) so logs
+              // without the normalized n_cache_token still total correctly.
+              a.cache +=
+                d.n_cache_token ??
+                (d.cache_read_input_tokens ?? 0) +
+                  (d.cache_creation_input_tokens ?? 0);
+              a.out += d.n_output_token ?? d.output ?? 0;
+              return a;
+            },
+            { in: 0, cache: 0, out: 0 },
+          );
+        const firstByte = events.find((e) => e.event === "first_chunk");
+        const wrap = el(`<div>
     <div class="summary">
       <div class="stat"><div class="k">total latency</div><div class="v">${total} ms</div></div>
       <div class="stat"><div class="k">time to first byte</div><div class="v">${firstByte ? firstByte.t_ms + " ms" : "—"}</div></div>
-      <div class="stat"><div class="k">tokens in / out</div><div class="v">${usage.in} / ${usage.out}</div></div>
-      <div class="stat"><div class="k">events</div><div class="v">${events.length}</div></div>
+      <div class="stat"><div class="k">tokens in / cache / out</div><div class="v">${usage.in} / ${usage.cache} / ${usage.out}</div></div>
     </div>
-    <div class="tags">${tags.map(t => `<span class="tag">${esc(t)}</span>`).join("")}</div>
+    <div class="tags">${tags.map((t) => `<span class="tag">${esc(t)}</span>`).join("")}</div>
   </div>`);
-  return wrap;
-}
+        return wrap;
+      }
 
-// ---- app state ----
-let turns = [];
-let active = 0;
+      // ---- app state ----
+      let turns = [];
+      let turnIds = []; // conversation_id (row id) per turn; empty for pasted data
+      let turnSessions = []; // session_id per turn; empty for pasted data
+      let active = 0;
 
-function renderTurn(idx) {
-  active = idx;
-  const out = document.getElementById("out");
-  out.innerHTML = "";
-  const events = turns[idx];
-  out.appendChild(renderSummary(events));
-  out.appendChild(renderFlow(buildFlow(events)));
-  [...document.querySelectorAll("#turns button")].forEach((b, i) =>
-    b.classList.toggle("active", i === idx));
-}
+      function renderTurn(idx) {
+        active = idx;
+        const out = document.getElementById("out");
+        out.innerHTML = "";
+        const events = turns[idx];
+        out.appendChild(renderQA(events, turnIds[idx], turnSessions[idx]));
+        out.appendChild(renderSummary(events));
+        out.appendChild(renderFlow(buildFlow(events)));
+        [...document.querySelectorAll("#turns button")].forEach((b, i) =>
+          b.classList.toggle("active", i === idx),
+        );
+      }
 
-function loadFromInput() {
-  const text = document.getElementById("input").value;
-  turns = extractArrays(text);
-  const tdiv = document.getElementById("turns");
-  tdiv.innerHTML = "";
-  if (!turns.length) {
-    document.getElementById("out").innerHTML =
-      `<div class="empty">No JSON event array found. Paste the <code>events</code> value.</div>`;
-    return;
-  }
-  turns.forEach((t, i) => {
-    const intent = (t.find(e => e.event === "router_decision") || {}).data;
-    const label = `Turn ${i + 1} · ${t.length} events${intent ? " · " + esc(intent.intent) : ""}`;
-    const btn = el(`<button>${label}</button>`);
-    btn.addEventListener("click", () => renderTurn(i));
-    tdiv.appendChild(btn);
-  });
-  renderTurn(0);
-}
+      // Build the turn buttons + render the first turn from the current `turns`.
+      // `emptyMsg` shows when there are no turns to render.
+      function showTurns(emptyMsg) {
+        const tdiv = document.getElementById("turns");
+        tdiv.innerHTML = "";
+        if (!turns.length) {
+          document.getElementById("out").innerHTML =
+            `<div class="empty">${emptyMsg}</div>`;
+          return;
+        }
+        turns.forEach((t, i) => {
+          const intent = (t.find((e) => e.event === "router_decision") || {})
+            .data;
+          const label = `Turn ${i + 1} · ${t.length} events${intent ? " · " + esc(intent.intent) : ""}`;
+          const btn = el(`<button>${label}</button>`);
+          btn.addEventListener("click", () => renderTurn(i));
+          tdiv.appendChild(btn);
+        });
+        renderTurn(0);
+      }
 
-function setAllCollapsed(state) {
-  document.querySelectorAll("#out .card").forEach(c => c.classList.toggle("collapsed", state));
-}
+      // Clear all input fields after a successful load.
+      function clearFields() {
+        document.getElementById("input").value = "";
+        document.getElementById("conv").value = "";
+        document.getElementById("sess").value = "";
+      }
 
-// Position a fixed tooltip relative to its trigger, flipping below and
-// clamping to the viewport so it's never clipped or pushed off-screen.
-function showTip(tip) {
-  const box = tip.querySelector(".tipbox");
-  if (!box) return;
-  box.style.visibility = "hidden";
-  box.style.display = "block";
-  const r = tip.getBoundingClientRect();
-  const bw = box.offsetWidth, bh = box.offsetHeight, m = 8;
-  let top = r.top - bh - m;
-  if (top < m) top = r.bottom + m;                       // flip below if no room above
-  let left = Math.min(r.left, window.innerWidth - bw - m);
-  left = Math.max(m, left);
-  box.style.left = left + "px";
-  box.style.top = top + "px";
-  box.style.visibility = "visible";
-}
-function hideTip(tip) {
-  const box = tip.querySelector(".tipbox");
-  if (box) box.style.display = "none";
-}
-document.addEventListener("mouseover", e => { const t = e.target.closest(".tip"); if (t) showTip(t); });
-document.addEventListener("mouseout", e => {
-  const t = e.target.closest(".tip");
-  if (t && !t.contains(e.relatedTarget)) hideTip(t);
-});
-document.addEventListener("focusin", e => { const t = e.target.closest?.(".tip"); if (t) showTip(t); });
-document.addEventListener("focusout", e => { const t = e.target.closest?.(".tip"); if (t) hideTip(t); });
+      function loadFromInput() {
+        turns = extractArrays(document.getElementById("input").value);
+        turnIds = [];
+        turnSessions = [];
+        showTurns(
+          "No JSON event array found. Paste the <code>events</code> value.",
+        );
+        if (turns.length) clearFields();
+      }
 
-document.getElementById("render").addEventListener("click", loadFromInput);
-document.getElementById("expand").addEventListener("click", () => setAllCollapsed(false));
-document.getElementById("collapse").addEventListener("click", () => setAllCollapsed(true));
-</script>
-</body>
+      // ---- Supabase chat_logs fetch ----
+      // conversation_id => one row (by id) => one turn.
+      // session_id      => all rows (by session_id), oldest first => many turns.
+      // Each row's `events` jsonb is one turn, fed into the same renderer as paste.
+      const SUPABASE_URL = "https://xjzwdchkgkiirgnrpgzv.supabase.co";
+      const SUPABASE_KEY = "sb_publishable_6hvo1L6f9wRWwDRBWHmR9Q_1RdLXKfA";
+
+      function setFetchMsg(text, isErr) {
+        const m = document.getElementById("fetchMsg");
+        m.textContent = text;
+        m.classList.toggle("err", !!isErr);
+      }
+
+      async function loadFromSupabase() {
+        const conv = document.getElementById("conv").value.trim();
+        const sess = document.getElementById("sess").value.trim();
+        if (!conv && !sess) {
+          setFetchMsg("Enter a conversation_id or session_id.", true);
+          return;
+        }
+
+        // conversation_id is more specific; prefer it when both are filled.
+        const query = conv
+          ? `id=eq.${encodeURIComponent(conv)}&select=id,events,created_at,session_id`
+          : `session_id=eq.${encodeURIComponent(sess)}&select=id,events,created_at,session_id&order=created_at.asc`;
+        if (conv && sess)
+          setFetchMsg("Both filled — using conversation_id.", false);
+        else setFetchMsg("Fetching…", false);
+
+        try {
+          const res = await fetch(
+            `${SUPABASE_URL}/rest/v1/chat_logs?${query}`,
+            {
+              headers: {
+                apikey: SUPABASE_KEY,
+                Authorization: `Bearer ${SUPABASE_KEY}`,
+              },
+            },
+          );
+          if (!res.ok)
+            throw new Error(`HTTP ${res.status} — ${await res.text()}`);
+          const rows = await res.json();
+          if (!rows.length) {
+            turns = [];
+            turnIds = [];
+            turnSessions = [];
+            showTurns("No rows matched.");
+            setFetchMsg("0 rows.", true);
+            return;
+          }
+          // Each row.events is the array the renderer expects; skip rows missing it.
+          // Keep turns and turnIds aligned by filtering rows once.
+          const valid = rows.filter((r) => Array.isArray(r.events));
+          turns = valid.map((r) => r.events);
+          turnIds = valid.map((r) => r.id);
+          turnSessions = valid.map((r) => r.session_id);
+          showTurns("Rows had no <code>events</code>.");
+          const loaded = turns.length;
+          setFetchMsg(
+            `Loaded ${loaded} turn${loaded === 1 ? "" : "s"}.`,
+            false,
+          );
+          if (loaded) clearFields();
+        } catch (e) {
+          setFetchMsg(String(e.message || e), true);
+        }
+      }
+
+      function setAllCollapsed(state) {
+        document
+          .querySelectorAll("#out .card")
+          .forEach((c) => c.classList.toggle("collapsed", state));
+      }
+
+      // Position a fixed tooltip relative to its trigger, flipping below and
+      // clamping to the viewport so it's never clipped or pushed off-screen.
+      function showTip(tip) {
+        const box = tip.querySelector(".tipbox");
+        if (!box) return;
+        box.style.visibility = "hidden";
+        box.style.display = "block";
+        const r = tip.getBoundingClientRect();
+        const bw = box.offsetWidth,
+          bh = box.offsetHeight,
+          m = 8;
+        let top = r.top - bh - m;
+        if (top < m) top = r.bottom + m; // flip below if no room above
+        let left = Math.min(r.left, window.innerWidth - bw - m);
+        left = Math.max(m, left);
+        box.style.left = left + "px";
+        box.style.top = top + "px";
+        box.style.visibility = "visible";
+      }
+      function hideTip(tip) {
+        const box = tip.querySelector(".tipbox");
+        if (box) box.style.display = "none";
+      }
+      document.addEventListener("mouseover", (e) => {
+        const t = e.target.closest(".tip");
+        if (t) showTip(t);
+      });
+      document.addEventListener("mouseout", (e) => {
+        const t = e.target.closest(".tip");
+        if (t && !t.contains(e.relatedTarget)) hideTip(t);
+      });
+      document.addEventListener("focusin", (e) => {
+        const t = e.target.closest?.(".tip");
+        if (t) showTip(t);
+      });
+      document.addEventListener("focusout", (e) => {
+        const t = e.target.closest?.(".tip");
+        if (t) hideTip(t);
+      });
+
+      document
+        .getElementById("fetch")
+        .addEventListener("click", loadFromSupabase);
+      document
+        .getElementById("render")
+        .addEventListener("click", loadFromInput);
+      document
+        .getElementById("expand")
+        .addEventListener("click", () => setAllCollapsed(false));
+      document
+        .getElementById("collapse")
+        .addEventListener("click", () => setAllCollapsed(true));
+    </script>
+  </body>
 </html>
