@@ -745,14 +745,16 @@
         return row;
       }
 
-      // Router provider flow: the "router" generation runs OpenAI (primary, a
-      // single attempt — its client is built with max_retries=0) and only falls
-      // back to Gemini on failure. Both providers log inside this one stage, so
-      // we detect the flow from their model_parameters fingerprints:
+      // Router provider flow — LEGACY logs only. The router is now Gemini-only,
+      // but older logs recorded the OpenAI-primary → Gemini-fallback flow (OpenAI
+      // a single attempt, its client built with max_retries=0). Both providers
+      // logged inside this one stage, detected from their model_parameters
+      // fingerprints:
       //   OpenAI  → has `reasoning_effort`        (openai_client.py)
       //   Gemini  → has `response_mime_type`      (gemini.py)
       // Any `retry` events inside the stage are Gemini's (only it retries).
-      // Returns banner HTML, or null when the stage isn't the provider router.
+      // Returns banner HTML, or null for current Gemini-only logs / non-router
+      // stages (the stage header already shows the model and retries log as events).
       function routerProviderFlow(node) {
         if (node.name !== "router") return null;
         const evs = node.events
@@ -763,7 +765,7 @@
           .map((e) => e.data || {});
         const triedOpenAI = params.some((p) => "reasoning_effort" in p);
         const usedGemini = params.some((p) => "response_mime_type" in p);
-        if (!triedOpenAI && !usedGemini) return null;
+        if (!triedOpenAI) return null;
         const retries = evs.filter((e) => e.event === "retry").length;
         // A provider succeeded iff it recorded an output. OpenAI failed exactly
         // when the pipeline fell back to Gemini (usedGemini). Gemini's success is
