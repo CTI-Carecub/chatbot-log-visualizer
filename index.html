@@ -646,6 +646,13 @@
             return chips(d);
           case "first_chunk":
             return `<span class="badge ok">first byte streamed</span>`;
+          case "retry":
+            // One transient-error (5xx/429) re-issue of an LLM call. A turn with
+            // no retry events was never retried — a hang/timeout bypasses this.
+            return (
+              `<span class="badge warn">retry ${esc(d.attempt)}/${esc(d.max_retries)}</span> ` +
+              chips({ code: d.code, delay_s: d.delay_s, call: d.what })
+            );
           case "span_attrs":
             return chips(d);
           case "error":
@@ -905,11 +912,13 @@
             { in: 0, cache: 0, out: 0 },
           );
         const firstByte = events.find((e) => e.event === "first_chunk");
+        const retries = events.filter((e) => e.event === "retry").length;
         const wrap = el(`<div>
     <div class="summary">
       <div class="stat"><div class="k">total latency</div><div class="v">${total} ms</div></div>
       <div class="stat"><div class="k">time to first byte</div><div class="v">${firstByte ? firstByte.t_ms + " ms" : "—"}</div></div>
       <div class="stat"><div class="k">tokens in / cache / out</div><div class="v">${usage.in} / ${usage.cache} / ${usage.out}</div></div>
+      <div class="stat"><div class="k">retries</div><div class="v">${retries}</div></div>
     </div>
     <div class="tags">${tags.map((t) => `<span class="tag">${esc(t)}</span>`).join("")}</div>
   </div>`);
