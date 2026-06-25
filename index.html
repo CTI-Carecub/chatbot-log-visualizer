@@ -778,31 +778,80 @@
         return container;
       }
 
-      // Latest user prompt = last user message in the LAST `input` event.
-      // (The first input belongs to the router stage and is questionnaire background,
-      // not what the user typed — so we read the final generation's input.)
+      // Split a "ผู้ใช้: … \n บอท: …" conversation transcript (the router input's
+      // `.user` blob) into role-tagged segments. Markers are matched at line start.
+      function parseTranscript(text) {
+        if (typeof text !== "string") return [];
+        const re = /^(ผู้ใช้|บอท):[ \t]?/gm;
+        const segs = [];
+        let m,
+          last = null;
+        while ((m = re.exec(text))) {
+          if (last)
+            segs.push({ role: last.role, text: text.slice(last.end, m.index).trim() });
+          last = { role: m[1], end: re.lastIndex };
+        }
+        if (last) segs.push({ role: last.role, text: text.slice(last.end).trim() });
+        return segs;
+      }
+
+      // The router input's `.user` is the full conversation transcript. Return it
+      // from the first input that carries one (router-only turns have just that).
+      function routerTranscript(events) {
+        const inp = events
+          .filter((e) => e.event === "input")
+          .find((e) => typeof (e.data?.value || {}).user === "string");
+        return inp ? parseTranscript(inp.data.value.user) : [];
+      }
+
+      // Latest user prompt. Full turns carry a generation `input` whose chat
+      // `messages` end with the user's new line. Router/clarify turns have no
+      // generation input — only the router input, whose `.user` is the whole
+      // transcript; there the new line is the last "ผู้ใช้:" segment.
       function latestPrompt(events) {
         const inputs = events.filter((e) => e.event === "input");
-        const v = (inputs[inputs.length - 1]?.data || {}).value || {};
-        if (Array.isArray(v.messages)) {
-          const u = v.messages.filter((m) => m.role === "user").pop();
+        const gen = [...inputs]
+          .reverse()
+          .find((e) => Array.isArray((e.data?.value || {}).messages));
+        if (gen) {
+          const u = gen.data.value.messages.filter((m) => m.role === "user").pop();
           if (u)
             return Array.isArray(u.parts)
               ? u.parts.map((p) => p.text || "").join("")
               : u.content || "";
         }
-        return v.user || null;
+        const v = (inputs[inputs.length - 1]?.data || {}).value || {};
+        if (typeof v.user === "string") {
+          const u = [...parseTranscript(v.user)]
+            .reverse()
+            .find((s) => s.role === "ผู้ใช้");
+          return u ? u.text : v.user;
+        }
+        return null;
       }
 
-      // Chatbot answer = value of the LAST `output` event (the final generation).
-      function finalAnswer(events) {
+      // Chatbot answer = value of the last STRING `output` (the final generation).
+      // Router/clarify turns produce no answer text of their own — the reply the
+      // user saw is logged only as history in the NEXT turn's router transcript,
+      // so pull it from there (the last "บอท:" segment).
+      function finalAnswer(events, nextEvents) {
         const outs = events.filter((e) => e.event === "output");
-        return outs.length ? (outs[outs.length - 1].data || {}).value : null;
+        const str = [...outs]
+          .reverse()
+          .find((o) => typeof (o.data?.value) === "string");
+        if (str) return str.data.value;
+        if (nextEvents) {
+          const bot = [...routerTranscript(nextEvents)]
+            .reverse()
+            .find((s) => s.role === "บอท");
+          if (bot) return bot.text;
+        }
+        return null;
       }
 
-      function renderQA(events, convId, sessId) {
+      function renderQA(events, convId, sessId, nextEvents) {
         const prompt = latestPrompt(events);
-        const answer = finalAnswer(events);
+        const answer = finalAnswer(events, nextEvents);
         return el(`<div class="qa">
   ${sessId ? `<div class="qa-id">session_id <code>${esc(sessId)}</code></div>` : ""}
     ${convId ? `<div class="qa-id">conversation_id <code>${esc(convId)}</code></div>` : ""}
@@ -855,7 +904,9 @@
         const out = document.getElementById("out");
         out.innerHTML = "";
         const events = turns[idx];
-        out.appendChild(renderQA(events, turnIds[idx], turnSessions[idx]));
+        out.appendChild(
+          renderQA(events, turnIds[idx], turnSessions[idx], turns[idx + 1]),
+        );
         out.appendChild(renderSummary(events));
         out.appendChild(renderFlow(buildFlow(events)));
         [...document.querySelectorAll("#turns button")].forEach((b, i) =>
