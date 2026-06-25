@@ -158,6 +158,17 @@
       .qa-id code {
         color: var(--txt);
       }
+      .qa-id button.refill {
+        margin-left: 8px;
+        padding: 3px 5px;
+        line-height: 0;
+        vertical-align: middle;
+        color: var(--muted);
+      }
+      .qa-id button.refill:hover {
+        color: var(--accent);
+        border-color: var(--accent);
+      }
       .qa-label {
         display: inline-block;
         font-size: 10px;
@@ -935,12 +946,30 @@
       function renderQA(events, convId, sessId, nextEvents) {
         const prompt = latestPrompt(events);
         const answer = finalAnswer(events, nextEvents);
-        return el(`<div class="qa">
-  ${sessId ? `<div class="qa-id">session_id <code>${esc(sessId)}</code></div>` : ""}
-    ${convId ? `<div class="qa-id">conversation_id <code>${esc(convId)}</code></div>` : ""}
+        const refillBtn = (target) =>
+          `<button class="ghost refill" data-target="${target}" title="Use in search field"><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg></button>`;
+        const node = el(`<div class="qa">
+  ${sessId ? `<div class="qa-id">session_id <code>${esc(sessId)}</code>${refillBtn("sess")}</div>` : ""}
+    ${convId ? `<div class="qa-id">conversation_id <code>${esc(convId)}</code>${refillBtn("conv")}</div>` : ""}
     <div><div class="qa-label user">User prompt</div><pre class="text">${prompt != null ? esc(prompt) : "—"}</pre></div>
     <div><div class="qa-label bot">Chatbot answer</div><pre class="text">${pretty(answer)}</pre></div>
   </div>`);
+        // Refill the matching search field from the rendered id (closure over the
+        // value, so no need to re-escape it out of the DOM).
+        const fill = (id, val) => {
+          const f = document.getElementById(id);
+          f.value = val;
+          f.focus();
+        };
+        if (sessId)
+          node
+            .querySelector('.refill[data-target="sess"]')
+            .addEventListener("click", () => fill("sess", sessId));
+        if (convId)
+          node
+            .querySelector('.refill[data-target="conv"]')
+            .addEventListener("click", () => fill("conv", convId));
+        return node;
       }
 
       function renderSummary(events) {
