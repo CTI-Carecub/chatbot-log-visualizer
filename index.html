@@ -661,6 +661,29 @@
         <div class="src" style="margin-top:6px">reason</div>${reasonHtml}
         <div class="src" style="margin-top:6px">filters</div>${chips(f)}`;
           }
+          case "filters_merged": {
+            // fresh = filters the router extracted this turn; merged = what the
+            // pipeline actually used after backfilling from slot memory. A slot
+            // filled in merged but null in fresh was recovered from an earlier
+            // turn (the fix for the clarify loop) — flag it so the gap between
+            // router_decision.filters and the branch is no longer a mystery.
+            const fresh = d.fresh || {};
+            const merged = d.merged || {};
+            const cells = Object.keys(merged)
+              .map((k) => {
+                const mv = merged[k];
+                if (mv == null) return "";
+                const carried = fresh[k] == null;
+                return `<span class="chip">${carried ? "🧠 " : ""}<b>${esc(k)}</b> ${esc(mv)}${carried ? ' <span class="src">carried</span>' : ""}</span>`;
+              })
+              .filter(Boolean)
+              .join("");
+            const resetBadge = d.reset
+              ? `<span class="badge warn">memory reset — new query</span> `
+              : "";
+            return `<div class="src">slot memory — 🧠 = recovered from a previous turn</div>
+        <div class="chips" style="margin-top:6px">${resetBadge}${cells || "—"}</div>`;
+          }
           case "branch":
             return chips(d);
           case "turn_end":
