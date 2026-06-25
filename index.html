@@ -745,6 +745,43 @@
         return row;
       }
 
+      // Router provider flow: the "router" generation runs OpenAI (primary, a
+      // single attempt — its client is built with max_retries=0) and only falls
+      // back to Gemini on failure. Both providers log inside this one stage, so
+      // we detect the flow from their model_parameters fingerprints:
+      //   OpenAI  → has `reasoning_effort`        (openai_client.py)
+      //   Gemini  → has `response_mime_type`      (gemini.py)
+      // Any `retry` events inside the stage are Gemini's (only it retries).
+      // Returns banner HTML, or null when the stage isn't the provider router.
+      function routerProviderFlow(node) {
+        if (node.name !== "router") return null;
+        const evs = node.events
+          .filter((c) => c.type === "event")
+          .map((c) => c.ev);
+        const params = evs
+          .filter((e) => e.event === "model_parameters")
+          .map((e) => e.data || {});
+        const triedOpenAI = params.some((p) => "reasoning_effort" in p);
+        const usedGemini = params.some((p) => "response_mime_type" in p);
+        if (!triedOpenAI && !usedGemini) return null;
+        const retries = evs.filter((e) => e.event === "retry").length;
+        // A provider succeeded iff it recorded an output. OpenAI failed exactly
+        // when the pipeline fell back to Gemini (usedGemini). Gemini's success is
+        // the only output that can exist once OpenAI failed; both failing = the
+        // fail-open path (no output → router_decision shows the reason).
+        const geminiOk = evs.some((e) => e.event === "output");
+        const parts = [
+          `<span class="badge ${usedGemini ? "err" : "ok"}">OpenAI ${usedGemini ? "✗" : "✓"} · primary</span>`,
+        ];
+        if (usedGemini) {
+          parts.push(`<span class="src">→</span>`);
+          parts.push(
+            `<span class="badge ${geminiOk ? "ok" : "err"}">Gemini ${geminiOk ? "✓" : "✗"} · fallback${retries ? ` · retried ${retries}×` : ""}</span>`,
+          );
+        }
+        return `<div class="chips" style="margin-bottom:6px"><span class="src">router provider:</span>${parts.join("")}</div>`;
+      }
+
       function renderStage(node) {
         const cls = node.kind === "generation" ? "gen" : "span";
         const card = el(`<div class="card ${cls}">
@@ -757,6 +794,8 @@
     <div class="body"></div>
   </div>`);
         const body = card.querySelector(".body");
+        const flow = routerProviderFlow(node);
+        if (flow) body.appendChild(el(flow));
         for (const child of node.events) {
           body.appendChild(
             child.type === "stage"
@@ -825,13 +864,25 @@
         return segs;
       }
 
-      // The router input's `.user` is the full conversation transcript. Return it
-      // from the first input that carries one (router-only turns have just that).
+      // The router input holds the conversation history. New logs store it as
+      // role-tagged `.messages` (OpenAI `{role, content}` / Gemini `{role,
+      // parts}`); older logs flattened it into a `.user` transcript. Normalize
+      // either into the {role, text} segments finalAnswer/latestPrompt expect.
       function routerTranscript(events) {
-        const inp = events
-          .filter((e) => e.event === "input")
-          .find((e) => typeof (e.data?.value || {}).user === "string");
-        return inp ? parseTranscript(inp.data.value.user) : [];
+        const inp = events.find(
+          (e) => e.event === "input" && e.stage === "router",
+        );
+        const v = inp?.data?.value || {};
+        if (Array.isArray(v.messages)) {
+          return v.messages.map((m) => ({
+            role: m.role === "user" ? "ผู้ใช้" : "บอท",
+            text: Array.isArray(m.parts)
+              ? m.parts.map((p) => p.text || "").join("")
+              : m.content || "",
+          }));
+        }
+        if (typeof v.user === "string") return parseTranscript(v.user); // old logs
+        return [];
       }
 
       // Latest user prompt. Full turns carry a generation `input` whose chat
