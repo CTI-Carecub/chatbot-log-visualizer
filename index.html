@@ -653,6 +653,9 @@
               `<span class="badge warn">retry ${esc(d.attempt)}/${esc(d.max_retries)}</span> ` +
               chips({ code: d.code, delay_s: d.delay_s, call: d.what })
             );
+          case "service_tier":
+            // Only emitted when a non-default (paid) tier was in use.
+            return `<span class="badge ok">⚡ ${esc(d.tier)} tier</span>`;
           case "span_attrs":
             return chips(d);
           case "error":
@@ -966,6 +969,16 @@
           );
         const firstByte = events.find((e) => e.event === "first_chunk");
         const retries = events.filter((e) => e.event === "retry").length;
+        // service_tier events only exist when a paid tier was in use, so any
+        // presence means the turn ran on that tier — surface it as a tag.
+        const tiers = [
+          ...new Set(
+            events
+              .filter((e) => e.event === "service_tier")
+              .map((e) => (e.data || {}).tier)
+              .filter(Boolean),
+          ),
+        ];
         const wrap = el(`<div>
     <div class="summary">
       <div class="stat"><div class="k">total latency</div><div class="v">${total} ms</div></div>
@@ -973,7 +986,7 @@
       <div class="stat"><div class="k">tokens in / cache / out</div><div class="v">${usage.in} / ${usage.cache} / ${usage.out}</div></div>
       <div class="stat"><div class="k">retries</div><div class="v">${retries}</div></div>
     </div>
-    <div class="tags">${tags.map((t) => `<span class="tag">${esc(t)}</span>`).join("")}</div>
+    <div class="tags">${tiers.map((t) => `<span class="tag">⚡ ${esc(t)} tier</span>`).join("")}${tags.map((t) => `<span class="tag">${esc(t)}</span>`).join("")}</div>
   </div>`);
         return wrap;
       }
