@@ -158,6 +158,17 @@
       .qa-id code {
         color: var(--txt);
       }
+      .qa-id button.refill {
+        margin-left: 8px;
+        padding: 3px 5px;
+        line-height: 0;
+        vertical-align: middle;
+        color: var(--muted);
+      }
+      .qa-id button.refill:hover {
+        color: var(--accent);
+        border-color: var(--accent);
+      }
       .qa-label {
         display: inline-block;
         font-size: 10px;
@@ -748,16 +759,20 @@
         return row;
       }
 
-      // Router provider flow — LEGACY logs only. The router is now Gemini-only,
-      // but older logs recorded the OpenAI-primary → Gemini-fallback flow (OpenAI
-      // a single attempt, its client built with max_retries=0). Both providers
-      // logged inside this one stage, detected from their model_parameters
-      // fingerprints:
-      //   OpenAI  → has `reasoning_effort`        (openai_client.py)
-      //   Gemini  → has `response_mime_type`      (gemini.py)
-      // Any `retry` events inside the stage are Gemini's (only it retries).
-      // Returns banner HTML, or null for current Gemini-only logs / non-router
-      // stages (the stage header already shows the model and retries log as events).
+      // Router fallback flow. Two log shapes show a banner; a normal
+      // single-attempt log returns null (the stage header already shows the
+      // model and retries log as events). Both attempts live inside the one
+      // "router" stage, told apart by their model_parameters fingerprints:
+      //   Gemini  → has `response_mime_type`   (gemini.py)
+      //
+      //   CURRENT Gemini Flash-Lite-primary → Flash-fallback. Both attempts
+      //      are Gemini, so they share the fingerprint — the fallback fired iff
+      //      there are TWO of them. The stage is tagged with the PRIMARY model;
+      //      the fallback model isn't logged, so it's named from the backend
+      //      config (settings.model_router_fallback) below.
+      // Any `retry` events inside the stage are a Gemini attempt's transient
+      // retries. An attempt succeeded iff an `output` was recorded; no output at
+      // all = the fail-open path (router_decision carries the reason).
       function routerProviderFlow(node) {
         if (node.name !== "router") return null;
         const evs = node.events
@@ -766,25 +781,42 @@
         const params = evs
           .filter((e) => e.event === "model_parameters")
           .map((e) => e.data || {});
-        const triedOpenAI = params.some((p) => "reasoning_effort" in p);
-        const usedGemini = params.some((p) => "response_mime_type" in p);
-        if (!triedOpenAI) return null;
         const retries = evs.filter((e) => e.event === "retry").length;
-        // A provider succeeded iff it recorded an output. OpenAI failed exactly
-        // when the pipeline fell back to Gemini (usedGemini). Gemini's success is
-        // the only output that can exist once OpenAI failed; both failing = the
-        // fail-open path (no output → router_decision shows the reason).
-        const geminiOk = evs.some((e) => e.event === "output");
-        const parts = [
-          `<span class="badge ${usedGemini ? "err" : "ok"}">OpenAI ${usedGemini ? "✗" : "✓"} · primary</span>`,
-        ];
-        if (usedGemini) {
-          parts.push(`<span class="src">→</span>`);
-          parts.push(
-            `<span class="badge ${geminiOk ? "ok" : "err"}">Gemini ${geminiOk ? "✓" : "✗"} · fallback${retries ? ` · retried ${retries}×` : ""}</span>`,
-          );
+        const ok = evs.some((e) => e.event === "output");
+        const wrap = (parts) =>
+          `<div class="chips" style="margin-bottom:6px"><span class="src">router:</span>${parts.join("")}</div>`;
+
+        // Shape 1 — legacy OpenAI primary.
+        if (params.some((p) => "reasoning_effort" in p)) {
+          const usedGemini = params.some((p) => "response_mime_type" in p);
+          const parts = [
+            `<span class="badge ${usedGemini ? "err" : "ok"}">OpenAI ${usedGemini ? "✗" : "✓"} · primary</span>`,
+          ];
+          if (usedGemini) {
+            parts.push(`<span class="src">→</span>`);
+            parts.push(
+              `<span class="badge ${ok ? "ok" : "err"}">Gemini ${ok ? "✓" : "✗"} · fallback${retries ? ` · retried ${retries}×` : ""}</span>`,
+            );
+          }
+          return wrap(parts);
         }
-        return `<div class="chips" style="margin-bottom:6px"><span class="src">router provider:</span>${parts.join("")}</div>`;
+
+        // Shape 2 — current Gemini Flash-Lite primary → Flash fallback. Two
+        // Gemini attempts means the primary exhausted its retries and the
+        // pipeline fell back; one attempt is the normal path (no banner).
+        const geminiAttempts = params.filter(
+          (p) => "response_mime_type" in p,
+        ).length;
+        if (geminiAttempts >= 2) {
+          const primary = node.model || "gemini-2.5-flash-lite";
+          const fallback = "gemini-2.5-flash"; // settings.model_router_fallback
+          return wrap([
+            `<span class="badge err">${esc(primary)} ✗ · primary${retries ? ` · retried ${retries}×` : ""}</span>`,
+            `<span class="src">→</span>`,
+            `<span class="badge ${ok ? "ok" : "err"}">${esc(fallback)} ${ok ? "✓" : "✗"} · fallback</span>`,
+          ]);
+        }
+        return null;
       }
 
       function renderStage(node) {
@@ -938,12 +970,30 @@
       function renderQA(events, convId, sessId, nextEvents) {
         const prompt = latestPrompt(events);
         const answer = finalAnswer(events, nextEvents);
-        return el(`<div class="qa">
-  ${sessId ? `<div class="qa-id">session_id <code>${esc(sessId)}</code></div>` : ""}
-    ${convId ? `<div class="qa-id">conversation_id <code>${esc(convId)}</code></div>` : ""}
+        const refillBtn = (target) =>
+          `<button class="ghost refill" data-target="${target}" title="Use in search field"><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg></button>`;
+        const node = el(`<div class="qa">
+  ${sessId ? `<div class="qa-id">session_id <code>${esc(sessId)}</code>${refillBtn("sess")}</div>` : ""}
+    ${convId ? `<div class="qa-id">conversation_id <code>${esc(convId)}</code>${refillBtn("conv")}</div>` : ""}
     <div><div class="qa-label user">User prompt</div><pre class="text">${prompt != null ? esc(prompt) : "—"}</pre></div>
     <div><div class="qa-label bot">Chatbot answer</div><pre class="text">${pretty(answer)}</pre></div>
   </div>`);
+        // Refill the matching search field from the rendered id (closure over the
+        // value, so no need to re-escape it out of the DOM).
+        const fill = (id, val) => {
+          const f = document.getElementById(id);
+          f.value = val;
+          f.focus();
+        };
+        if (sessId)
+          node
+            .querySelector('.refill[data-target="sess"]')
+            .addEventListener("click", () => fill("sess", sessId));
+        if (convId)
+          node
+            .querySelector('.refill[data-target="conv"]')
+            .addEventListener("click", () => fill("conv", convId));
+        return node;
       }
 
       function renderSummary(events) {
