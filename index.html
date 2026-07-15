@@ -658,8 +658,9 @@
           case "first_chunk":
             return `<span class="badge ok">first byte streamed</span>`;
           case "retry":
-            // One transient-error (5xx/429) re-issue of an LLM call. A turn with
-            // no retry events was never retried — a hang/timeout bypasses this.
+            // One transient-error (5xx/429/transport) re-issue of an outbound
+            // call — a Gemini LLM call or the CareCub backend (`d.what` says
+            // which). A turn with no retry events was never retried.
             return (
               `<span class="badge warn">retry ${esc(d.attempt)}/${esc(d.max_retries)}</span> ` +
               chips({ code: d.code, delay_s: d.delay_s, call: d.what })
@@ -819,6 +820,24 @@
         return null;
       }
 
+      // CareCub backend retry flow (tool.products stage). `retry` events here
+      // are transient backend failures (5xx/429/transport error) re-issued by
+      // clients/carecub.py with backoff. A `span_attrs` carrying
+      // `backend_error` means the call ultimately gave up — the turn degraded
+      // to no product context. No retries = no banner (the normal path).
+      function backendRetryFlow(node) {
+        if (node.name !== "tool.products") return null;
+        const evs = node.events
+          .filter((c) => c.type === "event")
+          .map((c) => c.ev);
+        const retries = evs.filter((e) => e.event === "retry").length;
+        if (!retries) return null;
+        const failed = evs.some(
+          (e) => e.event === "span_attrs" && (e.data || {}).backend_error != null,
+        );
+        return `<div class="chips" style="margin-bottom:6px"><span class="src">backend:</span><span class="badge ${failed ? "err" : "ok"}">carecub ${failed ? "✗ · gave up" : "✓ · recovered"} · retried ${retries}×</span></div>`;
+      }
+
       function renderStage(node) {
         const cls = node.kind === "generation" ? "gen" : "span";
         const card = el(`<div class="card ${cls}">
@@ -831,7 +850,7 @@
     <div class="body"></div>
   </div>`);
         const body = card.querySelector(".body");
-        const flow = routerProviderFlow(node);
+        const flow = routerProviderFlow(node) || backendRetryFlow(node);
         if (flow) body.appendChild(el(flow));
         for (const child of node.events) {
           body.appendChild(
