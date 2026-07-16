@@ -92,6 +92,23 @@
         padding-bottom: 12px;
         border-bottom: 1px solid var(--line);
       }
+      .fetch .env {
+        display: flex;
+        gap: 6px;
+      }
+      .fetch .env button {
+        flex: 1;
+        background: var(--panel2);
+        color: var(--muted);
+        border: 1px solid var(--line);
+        font-weight: 500;
+        font-size: 12px;
+        padding: 6px 10px;
+      }
+      .fetch .env button.active {
+        border-color: var(--accent);
+        color: var(--accent);
+      }
       .fetch .or {
         color: var(--muted);
         font-size: 11px;
@@ -460,6 +477,12 @@
     <div class="wrap">
       <div class="left">
         <div class="fetch">
+          <div class="env" id="env">
+            <button type="button" class="active" data-env="staging">
+              staging
+            </button>
+            <button type="button" data-env="prod">prod</button>
+          </div>
           <input
             type="text"
             id="conv"
@@ -1123,8 +1146,26 @@
       // conversation_id => one row (by id) => one turn.
       // session_id      => all rows (by session_id), oldest first => many turns.
       // Each row's `events` jsonb is one turn, fed into the same renderer as paste.
-      const SUPABASE_URL = "https://xjzwdchkgkiirgnrpgzv.supabase.co";
-      const SUPABASE_KEY = "sb_publishable_6hvo1L6f9wRWwDRBWHmR9Q_1RdLXKfA";
+      const SUPABASE_ENVS = {
+        staging: {
+          url: "https://xjzwdchkgkiirgnrpgzv.supabase.co",
+          key: "sb_publishable_6hvo1L6f9wRWwDRBWHmR9Q_1RdLXKfA",
+        },
+        prod: {
+          url: "https://vfdjozuanaqyzpocoezw.supabase.co",
+          key: "sb_publishable_v2JD4WuLCG3g5h8pw-mptQ_stHZi9o4",
+        },
+      };
+      let supabaseEnv = "staging";
+
+      document.querySelectorAll("#env button").forEach((btn) => {
+        btn.addEventListener("click", () => {
+          supabaseEnv = btn.dataset.env;
+          document
+            .querySelectorAll("#env button")
+            .forEach((b) => b.classList.toggle("active", b === btn));
+        });
+      });
 
       function setFetchMsg(text, isErr) {
         const m = document.getElementById("fetchMsg");
@@ -1149,15 +1190,13 @@
         else setFetchMsg("Fetching…", false);
 
         try {
-          const res = await fetch(
-            `${SUPABASE_URL}/rest/v1/chat_logs?${query}`,
-            {
-              headers: {
-                apikey: SUPABASE_KEY,
-                Authorization: `Bearer ${SUPABASE_KEY}`,
-              },
+          const { url, key } = SUPABASE_ENVS[supabaseEnv];
+          const res = await fetch(`${url}/rest/v1/chat_logs?${query}`, {
+            headers: {
+              apikey: key,
+              Authorization: `Bearer ${key}`,
             },
-          );
+          });
           if (!res.ok)
             throw new Error(`HTTP ${res.status} — ${await res.text()}`);
           const rows = await res.json();
